@@ -149,7 +149,7 @@ def test_workout_log_create_and_list(auth_headers):
     r2 = requests.get(f"{API}/workout/logs", headers=auth_headers)
     assert r2.status_code == 200
     logs = r2.json()
-    assert any(l["id"] == log_id for l in logs)
+    assert any(log["id"] == log_id for log in logs)
 
 
 # ============ Weight Logs ============
