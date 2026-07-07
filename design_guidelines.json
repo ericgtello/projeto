@@ -1,0 +1,163 @@
+{
+  "app_name": "FitJourney",
+  "personality": "7 Dark-First Utility",
+  "personality_one_liner": "Um centro de comando tático e direto, focado em performance, legibilidade rápida durante o treino e ausência de atrito visual.",
+  "color": {
+    "surface": "#0D0F12",
+    "onSurface": "#F2F4F7",
+    "surfaceSecondary": "#1A1D21",
+    "onSurfaceSecondary": "#98A2B3",
+    "surfaceTertiary": "#272A30",
+    "onSurfaceTertiary": "#D0D5DD",
+    "surfaceInverse": "#FFFFFF",
+    "onSurfaceInverse": "#0D0F12",
+    "brand": "#FF5900",
+    "brandPrimary": "#FF5900",
+    "onBrandPrimary": "#FFFFFF",
+    "brandSecondary": "#FF7A33",
+    "onBrandSecondary": "#1A0900",
+    "brandTertiary": "#331200",
+    "onBrandTertiary": "#FFB280",
+    "success": "#00E676",
+    "onSuccess": "#001A0D",
+    "warning": "#FFD600",
+    "onWarning": "#1A1500",
+    "error": "#FF3B30",
+    "onError": "#FFFFFF",
+    "info": "#E0E0E0",
+    "onInfo": "#121212",
+    "border": "#272A30",
+    "borderStrong": "#474D57",
+    "divider": "#1A1D21"
+  },
+  "typography": {
+    "displayFontFamily": "Barlow Condensed",
+    "textFontFamily": "Manrope",
+    "scale": {
+      "sm": 12,
+      "base": 14,
+      "lg": 16,
+      "xl": 20,
+      "2xl": 24
+    }
+  },
+  "spacing": {
+    "rule": "Use espaçamento utilitário. Sem vazios excessivos. Elementos agrupados por bordas/divisores em vez de grandes margens vazias.",
+    "xs": 4,
+    "sm": 8,
+    "md": 12,
+    "lg": 16,
+    "xl": 24,
+    "2xl": 32,
+    "3xl": 48
+  },
+  "radius_tokens": {
+    "sm": 6,
+    "md": 12,
+    "lg": 20,
+    "pill": 999
+  },
+  "shadow_tier": "0",
+  "navigation": "bottom_tabs",
+  "icon_set": "Phosphor",
+  "glassmorphism": {
+    "enabled": false,
+    "do's": ["Evitar no estilo Dark-First Utility, usar cores sólidas para melhor legibilidade no ambiente de academia."],
+    "dont's": ["Não usar blur ou glassmorphism que possam prejudicar a leitura com reflexos da tela."]
+  },
+  "platform_libraries": {
+    "glass": {
+      "ios": "expo-glass-effect",
+      "android": "expo-blur",
+      "low_end_android_fallback": "solid surfaceSecondary"
+    },
+    "image": "expo-image",
+    "blur": "expo-blur",
+    "bottom_sheet": "@gorhom/bottom-sheet",
+    "animation": "react-native-reanimated",
+    "gesture": "react-native-gesture-handler"
+  },
+  "screens": [
+    {
+      "name": "Dashboard/Home",
+      "purpose": "Visão geral instantânea do objetivo do cliente, peso atual vs meta, e atalhos para treino ou refeição do dia.",
+      "states": {
+        "loading": "Spinner simples alinhado ao centro com a cor brandPrimary.",
+        "empty": "N/A",
+        "error": "Texto simples de erro e botão de tentar novamente."
+      },
+      "layout": "No topo, uma barra de progresso do objetivo (Emagrecimento/Hipertrofia) com design compacto e numérico. Abaixo, cards em grid 2-col para atalhos rápidos (Treino de Hoje, Refeição Atual). Uso intenso de divisores e alinhamento rígido."
+    },
+    {
+      "name": "Treinos",
+      "purpose": "Listagem de grupamentos musculares e tela de execução do treino com dicas e registro de séries/cargas.",
+      "states": {
+        "loading": "Skeleton focado em linhas simulando as tabelas de exercícios.",
+        "empty": "Ilustração de halteres + texto 'Nenhum treino programado para hoje'.",
+        "error": "Card com borda error indicando falha na sincronização."
+      },
+      "layout": "Lista densa por grupamento muscular. Ao entrar num treino, inputs grandes e fáceis de tocar para carga/reps. Texto de dica recolhível. O botão 'Salvar Série' ou 'Finalizar Treino' deve ficar fixo no rodapé."
+    },
+    {
+      "name": "Progresso",
+      "purpose": "Visualização gráfica de progressão de carga, repetições e peso corporal ao longo do tempo.",
+      "states": {
+        "loading": "Skeleton cobrindo a área do gráfico.",
+        "empty": "Aviso de 'Faltam dados: registre treinos para visualizar seu progresso'.",
+        "error": "Texto indicando erro ao carregar métricas."
+      },
+      "layout": "Gráficos de barra/linha com forte contraste usando a cor brandPrimary. Layout utilitário: abas de topo ('Cargas', 'Peso', 'Medidas') e seletor de exercícios."
+    },
+    {
+      "name": "Nutrição",
+      "purpose": "Plano alimentar detalhado por refeição, macros do dia e sistema de substituição de alimentos.",
+      "states": {
+        "loading": "Skeleton cobrindo os cards de refeições.",
+        "empty": "Aviso 'Plano alimentar não gerado'.",
+        "error": "Aviso de falha ao carregar refeições."
+      },
+      "layout": "No topo, um dashboard horizontal com os macros (Proteína, Carbo, Gordura, Kcal). Abaixo, cards em lista agrupando alimentos por refeição. Botão/ícone sutil de 'Trocar' ao lado de cada alimento."
+    },
+    {
+      "name": "Perfil e Objetivos",
+      "purpose": "Gerenciamento de equipamentos disponíveis na academia e cronograma do objetivo.",
+      "states": {
+        "loading": "Spinner de tela inteira.",
+        "empty": "N/A",
+        "error": "Erro ao carregar dados do usuário."
+      },
+      "layout": "Layout simples em formulário com switches rápidos para checklist de equipamentos. Uma seção de Timeline visual mostrando etapas (ex: Perder 5kg -> Manutenção)."
+    }
+  ],
+  "images": {
+    "dashboard_hero": {
+      "url": "https://images.unsplash.com/photo-1614367674345-f414b2be3e5b?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NjY2NzZ8MHwxfHNlYXJjaHwyfHxkYXJrJTIwZml0bmVzcyUyMGd5bSUyMGVxdWlwbWVudHxlbnwwfHx8fDE3ODM0MzgzNTh8MA&ixlib=rb-4.1.0&q=85",
+      "dark": "https://images.unsplash.com/photo-1614367674345-f414b2be3e5b?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NjY2NzZ8MHwxfHNlYXJjaHwyfHxkYXJrJTIwZml0bmVzcyUyMGd5bSUyMGVxdWlwbWVudHxlbnwwfHx8fDE3ODM0MzgzNTh8MA&ixlib=rb-4.1.0&q=85",
+      "alt": "Man in black tank top and black pants standing on black exercise equipment"
+    },
+    "nutrition_hero": {
+      "url": "https://images.pexels.com/photos/5794766/pexels-photo-5794766.jpeg",
+      "dark": "https://images.pexels.com/photos/5794766/pexels-photo-5794766.jpeg",
+      "alt": "Assorted fresh vegetables in plastic containers on a dark surface"
+    }
+  },
+  "instructions_to_main_agent": [
+    "Crie uma hierarquia baseada em tamanho e condensação tipográfica (use Barlow Condensed para cabeçalhos e números, Manrope para textos gerais).",
+    "Evite sombras, use bordas finas (border) e o surfaceSecondary para separar áreas da interface. Não use blur.",
+    "Para a lista de treinos, agrupe por blocos sólidos e mantenha alto contraste.",
+    "A tela de nutrição deve focar nos macros como barras de progresso superiores; use listas organizadas por linha com ícones Phosphor simples para a funcionalidade de 'Substituição'.",
+    "Para imagens (como na dashboard e na tela de dieta), utilize uma camada de scrim (gradiente linear de transparente a surfaceInverse/surface) sempre que houver texto por cima para garantir máxima legibilidade, dado o estilo utilitário.",
+    "Em vez de gráficos com design decorativo, use gráficos focados em dados retos e funcionais, combinando com a cor de destaque (Laranja/Amber).",
+    "Lembre-se da restrição de cor: TODOS os azuis e roxos estão banidos. Confie no grafite/preto profundo e nos destaques alaranjados.",
+    "Para o checklist de equipamentos, utilize controles de formulário nativos com switches em vez de cards complexos para um preenchimento rápido."
+  ],
+  "haptics": {
+    "events": {
+      "tab_press": "light",
+      "button_primary_press": "medium",
+      "log_set": "success",
+      "swap_food": "light",
+      "check_equipment": "selection"
+    }
+  }
+}
