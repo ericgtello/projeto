@@ -1,5 +1,4 @@
-from fastapi import FastAPI, APIRouter, HTTPException, Request, Header
-from fastapi.responses import JSONResponse
+from fastapi import FastAPI, APIRouter, HTTPException, Header
 from dotenv import load_dotenv
 from starlette.middleware.cors import CORSMiddleware
 from motor.motor_asyncio import AsyncIOMotorClient
@@ -18,7 +17,6 @@ from emergentintegrations.llm.chat import LlmChat, UserMessage
 ROOT_DIR = Path(__file__).parent
 load_dotenv(ROOT_DIR / ".env")
 
-# MongoDB
 mongo_url = os.environ["MONGO_URL"]
 client = AsyncIOMotorClient(mongo_url)
 db = client[os.environ["DB_NAME"]]
@@ -36,14 +34,13 @@ class User(BaseModel):
     name: str
     picture: Optional[str] = ""
     created_at: str
-    # Profile
-    goal: Optional[str] = None  # "emagrecimento" | "hipertrofia"
+    goal: Optional[str] = None
     current_weight: Optional[float] = None
     target_weight: Optional[float] = None
     height: Optional[float] = None
     age: Optional[int] = None
-    sex: Optional[str] = None  # "M" | "F"
-    activity_level: Optional[str] = None  # "sedentario", "leve", "moderado", "intenso"
+    sex: Optional[str] = None
+    activity_level: Optional[str] = None
     deadline_weeks: Optional[int] = None
     equipment: List[str] = []
     onboarded: bool = False
@@ -63,13 +60,14 @@ class ProfileUpdate(BaseModel):
 
 
 class WorkoutGenRequest(BaseModel):
-    muscle_group: str  # "peito", "costas", "pernas", "ombros", "bracos", "abdomen"
+    muscle_groups: List[str]
+    name: Optional[str] = None
 
 
 class Exercise(BaseModel):
     name: str
     sets: int
-    reps: str  # e.g. "10-12"
+    reps: str
     rest_seconds: int
     tips: str
     equipment: str
@@ -78,8 +76,10 @@ class Exercise(BaseModel):
 class WorkoutPlan(BaseModel):
     id: str = Field(default_factory=lambda: str(uuid.uuid4()))
     user_id: str
-    muscle_group: str
+    muscle_groups: List[str] = []
+    name: Optional[str] = None
     exercises: List[Exercise]
+    is_custom: bool = False
     created_at: str = Field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
 
 
@@ -102,6 +102,11 @@ class WorkoutLogCreate(BaseModel):
     set_number: int
 
 
+class RestUpdate(BaseModel):
+    exercise_index: int
+    rest_seconds: int
+
+
 class WeightLog(BaseModel):
     id: str = Field(default_factory=lambda: str(uuid.uuid4()))
     user_id: str
@@ -113,11 +118,8 @@ class WeightLogCreate(BaseModel):
     weight_kg: float
 
 
-class DietGenRequest(BaseModel):
-    pass
-
-
 class Food(BaseModel):
+    id: str = Field(default_factory=lambda: uuid.uuid4().hex[:8])
     name: str
     quantity: str
     kcal: float
@@ -128,7 +130,8 @@ class Food(BaseModel):
 
 
 class Meal(BaseModel):
-    name: str  # Café da manhã, Almoço, etc.
+    id: str = Field(default_factory=lambda: uuid.uuid4().hex[:8])
+    name: str
     time: str
     foods: List[Food]
 
@@ -140,11 +143,20 @@ class DietPlan(BaseModel):
     total_protein: float
     total_carbs: float
     total_fat: float
+    tmb: Optional[float] = None
+    tdee: Optional[float] = None
+    kcal_target_reason: Optional[str] = None
     meals: List[Meal]
     created_at: str = Field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
 
 
-# ============ AUTH HELPERS ============
+class RebalanceRequest(BaseModel):
+    meal_index: int
+    food_index: int
+    new_quantity: str
+
+
+# ============ AUTH ============
 async def get_current_user(authorization: Optional[str] = Header(None)) -> Optional[User]:
     if not authorization or not authorization.startswith("Bearer "):
         return None
@@ -176,14 +188,12 @@ async def require_user(authorization: Optional[str] = Header(None)) -> User:
     return user
 
 
-# ============ AUTH ROUTES ============
 class GoogleAuthRequest(BaseModel):
     session_id: str
 
 
 @api_router.post("/auth/google")
 async def auth_google(payload: GoogleAuthRequest):
-    """Exchange session_id from Emergent Google Auth for a session_token."""
     async with httpx.AsyncClient(timeout=15) as http:
         resp = await http.get(
             "https://demobackend.emergentagent.com/auth/v1/env/oauth/session-data",
@@ -200,11 +210,9 @@ async def auth_google(payload: GoogleAuthRequest):
     if not email or not session_token:
         raise HTTPException(status_code=400, detail="Malformed session data")
 
-    # Upsert user
     existing = await db.users.find_one({"email": email}, {"_id": 0})
     if existing:
         user_id = existing["user_id"]
-        # ensure basic fields present
         await db.users.update_one(
             {"user_id": user_id},
             {"$set": {"name": name or existing.get("name", ""), "picture": picture or existing.get("picture", "")}},
@@ -230,18 +238,15 @@ async def auth_google(payload: GoogleAuthRequest):
         }
         await db.users.insert_one(new_user)
 
-    # Store session
     expires_at = datetime.now(timezone.utc) + timedelta(days=7)
     await db.user_sessions.update_one(
         {"session_token": session_token},
-        {
-            "$set": {
-                "session_token": session_token,
-                "user_id": user_id,
-                "expires_at": expires_at.isoformat(),
-                "created_at": datetime.now(timezone.utc).isoformat(),
-            }
-        },
+        {"$set": {
+            "session_token": session_token,
+            "user_id": user_id,
+            "expires_at": expires_at.isoformat(),
+            "created_at": datetime.now(timezone.utc).isoformat(),
+        }},
         upsert=True,
     )
 
@@ -254,8 +259,7 @@ async def auth_me(authorization: Optional[str] = Header(None)):
     user = await get_current_user(authorization)
     if not user:
         raise HTTPException(status_code=401, detail="Not authenticated")
-    user_doc = await db.users.find_one({"user_id": user.user_id}, {"_id": 0})
-    return user_doc
+    return await db.users.find_one({"user_id": user.user_id}, {"_id": 0})
 
 
 @api_router.post("/auth/logout")
@@ -266,27 +270,23 @@ async def auth_logout(authorization: Optional[str] = Header(None)):
     return {"ok": True}
 
 
-# ============ PROFILE ============
 @api_router.patch("/profile")
 async def update_profile(payload: ProfileUpdate, authorization: Optional[str] = Header(None)):
     user = await require_user(authorization)
     update = {k: v for k, v in payload.model_dump().items() if v is not None}
     if update:
         await db.users.update_one({"user_id": user.user_id}, {"$set": update})
-    doc = await db.users.find_one({"user_id": user.user_id}, {"_id": 0})
-    return doc
+    return await db.users.find_one({"user_id": user.user_id}, {"_id": 0})
 
 
-# ============ AI WORKOUT ============
+# ============ HELPERS ============
 def _parse_json_from_llm(text: str) -> Any:
     text = text.strip()
     if text.startswith("```"):
         text = text.strip("`")
-        # remove leading language tag
         if text.startswith("json"):
             text = text[4:]
         text = text.strip("`").strip()
-    # find first { or [
     for opener, closer in (("{", "}"), ("[", "]")):
         i = text.find(opener)
         j = text.rfind(closer)
@@ -298,17 +298,40 @@ def _parse_json_from_llm(text: str) -> Any:
     return json.loads(text)
 
 
+GROUP_LABELS = {
+    "peito": "Peito",
+    "costas": "Costas",
+    "pernas": "Pernas",
+    "ombros": "Ombros",
+    "bracos": "Braços",
+    "abdomen": "Abdômen",
+}
+
+
+# ============ WORKOUT ============
 @api_router.post("/workout/generate")
 async def generate_workout(payload: WorkoutGenRequest, authorization: Optional[str] = Header(None)):
     user = await require_user(authorization)
     if not user.equipment:
         raise HTTPException(status_code=400, detail="Cadastre seus equipamentos antes de gerar treinos.")
+    if not payload.muscle_groups:
+        raise HTTPException(status_code=400, detail="Selecione ao menos um grupamento.")
+
+    groups_pt = [GROUP_LABELS.get(g, g) for g in payload.muscle_groups]
+    is_custom = len(payload.muscle_groups) > 1 or bool(payload.name)
 
     system = (
         "Você é um personal trainer experiente. Gere treinos personalizados em português (pt-BR). "
-        "Responda SEMPRE apenas com JSON válido, sem markdown, sem comentários."
+        "Responda SEMPRE apenas com JSON válido, sem markdown."
     )
-    prompt = f"""Gere um treino para o grupamento muscular: {payload.muscle_group}.
+    if is_custom:
+        target = f"combinação de grupamentos musculares: {', '.join(groups_pt)}"
+        count = "entre 6 e 9 exercícios (distribuindo bem entre os grupamentos escolhidos)"
+    else:
+        target = f"grupamento muscular: {groups_pt[0]}"
+        count = "entre 5 e 7 exercícios"
+
+    prompt = f"""Gere um treino para {target}.
 
 Perfil do aluno:
 - Objetivo: {user.goal or 'não informado'}
@@ -319,10 +342,11 @@ Perfil do aluno:
 - Equipamentos disponíveis: {', '.join(user.equipment)}
 
 Regras:
-- Selecione entre 5 e 7 exercícios adequados ao grupamento e aos equipamentos disponíveis.
+- Selecione {count} adequados aos equipamentos disponíveis.
 - Se o objetivo for hipertrofia: 3-4 séries de 8-12 repetições, descanso 60-90s.
 - Se for emagrecimento: 3-4 séries de 12-15 repetições, descanso 30-45s.
 - Para cada exercício, escreva 2-3 frases claras com dicas de execução (postura, respiração, erros comuns).
+- Ordene os exercícios de forma inteligente (compostos primeiro).
 
 Retorne APENAS este JSON:
 {{
@@ -358,7 +382,13 @@ Retorne APENAS este JSON:
         logging.exception("Parse error: %s", response)
         raise HTTPException(status_code=500, detail=f"Resposta da IA inválida: {e}")
 
-    plan = WorkoutPlan(user_id=user.user_id, muscle_group=payload.muscle_group, exercises=exercises)
+    plan = WorkoutPlan(
+        user_id=user.user_id,
+        muscle_groups=payload.muscle_groups,
+        name=payload.name,
+        exercises=exercises,
+        is_custom=is_custom,
+    )
     await db.workout_plans.insert_one(plan.model_dump())
     return plan.model_dump()
 
@@ -366,20 +396,45 @@ Retorne APENAS este JSON:
 @api_router.get("/workout/plans")
 async def list_workout_plans(authorization: Optional[str] = Header(None)):
     user = await require_user(authorization)
-    plans = await db.workout_plans.find({"user_id": user.user_id}, {"_id": 0}).sort("created_at", -1).to_list(100)
+    plans = await db.workout_plans.find({"user_id": user.user_id}, {"_id": 0}).sort("created_at", -1).to_list(200)
     return plans
 
 
-@api_router.get("/workout/plans/{muscle_group}")
-async def get_workout_plan(muscle_group: str, authorization: Optional[str] = Header(None)):
+@api_router.get("/workout/plans/custom")
+async def list_custom_plans(authorization: Optional[str] = Header(None)):
+    user = await require_user(authorization)
+    plans = await db.workout_plans.find(
+        {"user_id": user.user_id, "is_custom": True}, {"_id": 0}
+    ).sort("created_at", -1).to_list(200)
+    return plans
+
+
+@api_router.get("/workout/plans/group/{muscle_group}")
+async def get_group_plan(muscle_group: str, authorization: Optional[str] = Header(None)):
     user = await require_user(authorization)
     plan = await db.workout_plans.find_one(
-        {"user_id": user.user_id, "muscle_group": muscle_group},
+        {"user_id": user.user_id, "muscle_groups": [muscle_group], "is_custom": False},
         {"_id": 0},
         sort=[("created_at", -1)],
     )
     if not plan:
+        # Backwards compat: also try old records where muscle_group was a string
+        plan = await db.workout_plans.find_one(
+            {"user_id": user.user_id, "muscle_group": muscle_group},
+            {"_id": 0},
+            sort=[("created_at", -1)],
+        )
+    if not plan:
         raise HTTPException(status_code=404, detail="Nenhum treino gerado ainda")
+    return plan
+
+
+@api_router.get("/workout/plans/id/{plan_id}")
+async def get_plan_by_id(plan_id: str, authorization: Optional[str] = Header(None)):
+    user = await require_user(authorization)
+    plan = await db.workout_plans.find_one({"user_id": user.user_id, "id": plan_id}, {"_id": 0})
+    if not plan:
+        raise HTTPException(status_code=404, detail="Treino não encontrado")
     return plan
 
 
@@ -388,6 +443,22 @@ async def delete_workout_plan(plan_id: str, authorization: Optional[str] = Heade
     user = await require_user(authorization)
     await db.workout_plans.delete_one({"id": plan_id, "user_id": user.user_id})
     return {"ok": True}
+
+
+@api_router.patch("/workout/plans/{plan_id}/rest")
+async def update_exercise_rest(plan_id: str, payload: RestUpdate, authorization: Optional[str] = Header(None)):
+    user = await require_user(authorization)
+    plan = await db.workout_plans.find_one({"id": plan_id, "user_id": user.user_id}, {"_id": 0})
+    if not plan:
+        raise HTTPException(status_code=404, detail="Treino não encontrado")
+    exercises = plan.get("exercises", [])
+    if payload.exercise_index < 0 or payload.exercise_index >= len(exercises):
+        raise HTTPException(status_code=400, detail="Índice de exercício inválido")
+    if payload.rest_seconds < 0 or payload.rest_seconds > 600:
+        raise HTTPException(status_code=400, detail="Descanso deve estar entre 0 e 600s")
+    exercises[payload.exercise_index]["rest_seconds"] = payload.rest_seconds
+    await db.workout_plans.update_one({"id": plan_id}, {"$set": {"exercises": exercises}})
+    return {"ok": True, "rest_seconds": payload.rest_seconds}
 
 
 # ============ WORKOUT LOGS ============
@@ -412,8 +483,29 @@ async def list_workout_logs(exercise: Optional[str] = None, authorization: Optio
 @api_router.get("/workout/logs/exercises")
 async def list_logged_exercises(authorization: Optional[str] = Header(None)):
     user = await require_user(authorization)
-    names = await db.workout_logs.distinct("exercise_name", {"user_id": user.user_id})
-    return names
+    return await db.workout_logs.distinct("exercise_name", {"user_id": user.user_id})
+
+
+@api_router.get("/workout/logs/last")
+async def last_session_summary(exercise: str, authorization: Optional[str] = Header(None)):
+    """Return the sets from the most recent session for an exercise (grouped by date)."""
+    user = await require_user(authorization)
+    logs = await db.workout_logs.find(
+        {"user_id": user.user_id, "exercise_name": exercise}, {"_id": 0}
+    ).sort("date", -1).to_list(200)
+    if not logs:
+        return {"has_history": False}
+    last_date = logs[0]["date"][:10]
+    # collect only logs from that day
+    session = [log for log in logs if log["date"][:10] == last_date]
+    session.sort(key=lambda x: x.get("set_number", 0))
+    max_w = max((s["weight_kg"] for s in session), default=0)
+    return {
+        "has_history": True,
+        "date": last_date,
+        "sets": session,
+        "max_weight": max_w,
+    }
 
 
 # ============ WEIGHT LOGS ============
@@ -422,7 +514,6 @@ async def add_weight_log(payload: WeightLogCreate, authorization: Optional[str] 
     user = await require_user(authorization)
     log = WeightLog(user_id=user.user_id, weight_kg=payload.weight_kg)
     await db.weight_logs.insert_one(log.model_dump())
-    # Also update user's current weight
     await db.users.update_one({"user_id": user.user_id}, {"$set": {"current_weight": payload.weight_kg}})
     return log.model_dump()
 
@@ -430,8 +521,7 @@ async def add_weight_log(payload: WeightLogCreate, authorization: Optional[str] 
 @api_router.get("/weight/logs")
 async def list_weight_logs(authorization: Optional[str] = Header(None)):
     user = await require_user(authorization)
-    logs = await db.weight_logs.find({"user_id": user.user_id}, {"_id": 0}).sort("date", 1).to_list(2000)
-    return logs
+    return await db.weight_logs.find({"user_id": user.user_id}, {"_id": 0}).sort("date", 1).to_list(2000)
 
 
 # ============ DIET ============
@@ -442,10 +532,10 @@ async def generate_diet(authorization: Optional[str] = Header(None)):
         raise HTTPException(status_code=400, detail="Complete seu perfil (objetivo e peso) antes de gerar a dieta.")
 
     system = (
-        "Você é um nutricionista especializado em pt-BR. Gere planos alimentares equilibrados e realistas. "
-        "Sempre responda APENAS com JSON válido, sem markdown ou texto adicional."
+        "Você é um nutricionista especializado em pt-BR. Gere planos alimentares equilibrados, realistas e "
+        "detalhados. Responda APENAS com JSON válido, sem markdown."
     )
-    prompt = f"""Monte um plano alimentar diário completo para este aluno.
+    prompt = f"""Monte um plano alimentar diário completo para este aluno e explique de forma clara como você chegou às calorias.
 
 Perfil:
 - Objetivo: {user.goal}
@@ -457,17 +547,26 @@ Perfil:
 - Nível de atividade: {user.activity_level or 'moderado'}
 
 Regras:
-- Calcule TMB (Mifflin-St Jeor) e ajuste kcal ao objetivo (déficit ~20% para emagrecimento, superávit ~10% para hipertrofia).
-- Distribua em 5 refeições: Café da manhã, Lanche da manhã, Almoço, Lanche da tarde, Jantar.
-- Cada alimento deve ter: nome, quantidade (com unidade), kcal, proteína, carboidrato, gordura (em gramas) e 2 a 3 substituições realistas com quantidades equivalentes.
-- Some macros totais do dia.
+1. Calcule a TMB (Taxa Metabólica Basal) usando a fórmula Mifflin-St Jeor.
+2. Calcule o GET (Gasto Energético Total) multiplicando pela atividade (sedentário 1.2, leve 1.375, moderado 1.55, intenso 1.725).
+3. Ajuste as calorias-alvo ao objetivo:
+   - Emagrecimento: déficit de ~20% (mínimo 1200 kcal para mulheres, 1500 para homens).
+   - Hipertrofia: superávit de ~10-15%.
+4. Distribua em 5 refeições: Café da manhã, Lanche da manhã, Almoço, Lanche da tarde, Jantar.
+5. Cada alimento deve trazer: nome, quantidade (com unidade, ex: "150 g"), kcal, proteína, carbo, gordura (em gramas).
+6. Para cada alimento inclua entre 4 e 5 substituições realistas com quantidades equivalentes (mantendo o mesmo valor calórico e macro similar).
+7. Some macros totais do dia.
+8. Escreva um texto claro (4 a 6 frases) em "kcal_target_reason" explicando: TMB calculada, fator de atividade, ajuste do objetivo, distribuição de macros e recomendação de hidratação.
 
 Retorne APENAS este JSON:
 {{
-  "total_kcal": 2000,
-  "total_protein": 150,
+  "tmb": 1650,
+  "tdee": 2560,
+  "total_kcal": 2050,
+  "total_protein": 155,
   "total_carbs": 200,
-  "total_fat": 60,
+  "total_fat": 65,
+  "kcal_target_reason": "Explicação em 4-6 frases.",
   "meals": [
     {{
       "name": "Café da manhã",
@@ -480,7 +579,7 @@ Retorne APENAS este JSON:
           "protein": 18,
           "carbs": 2,
           "fat": 15,
-          "substitutions": ["4 claras + 1 gema", "100g de queijo cottage"]
+          "substitutions": ["4 claras + 1 gema (200 kcal)", "100g queijo cottage (210 kcal)", "2 fatias peito de peru + 1 ovo (200 kcal)", "50g whey isolado (210 kcal)"]
         }}
       ]
     }}
@@ -507,7 +606,6 @@ Retorne APENAS este JSON:
         logging.exception("Parse diet error: %s", response)
         raise HTTPException(status_code=500, detail=f"Resposta da IA inválida: {e}")
 
-    # Replace latest diet plan
     await db.diet_plans.delete_many({"user_id": user.user_id})
     await db.diet_plans.insert_one(plan.model_dump())
     return plan.model_dump()
@@ -520,6 +618,84 @@ async def get_current_diet(authorization: Optional[str] = Header(None)):
     if not plan:
         raise HTTPException(status_code=404, detail="Nenhum plano alimentar gerado ainda")
     return plan
+
+
+@api_router.post("/diet/rebalance")
+async def rebalance_diet(payload: RebalanceRequest, authorization: Optional[str] = Header(None)):
+    """User changed the quantity of one food. Ask the LLM to rebalance the other foods
+    across the remaining meals so the day's total calories stay the same."""
+    user = await require_user(authorization)
+    plan = await db.diet_plans.find_one({"user_id": user.user_id}, {"_id": 0}, sort=[("created_at", -1)])
+    if not plan:
+        raise HTTPException(status_code=404, detail="Nenhum plano ativo")
+
+    try:
+        meal = plan["meals"][payload.meal_index]
+        food = meal["foods"][payload.food_index]
+    except (IndexError, KeyError):
+        raise HTTPException(status_code=400, detail="Refeição ou alimento inválido")
+
+    system = (
+        "Você é um nutricionista especializado em pt-BR. Rebalanceia planos alimentares mantendo o total "
+        "calórico diário estável. Responda APENAS com JSON válido, sem markdown."
+    )
+    prompt = f"""O usuário alterou a quantidade de um alimento e quer manter o mesmo total calórico diário.
+
+Plano atual (kcal total: {plan['total_kcal']:.0f}):
+{json.dumps(plan['meals'], ensure_ascii=False)}
+
+Alteração solicitada:
+- Refeição: {meal['name']}
+- Alimento: {food['name']} (era "{food['quantity']}", passa a ser "{payload.new_quantity}")
+
+Regras:
+1. Recalcule os macros e kcal do alimento alterado proporcionalmente à nova quantidade.
+2. Ajuste as quantidades e macros de OUTROS alimentos (em outras refeições) para manter o total calórico do dia PRÓXIMO do original ({plan['total_kcal']:.0f} kcal, com diferença máxima de 2%).
+3. Priorize ajustar carboidratos primeiro; mantenha proteína próxima do total original.
+4. Preserve os IDs dos alimentos e refeições. Preserve a lista de substituições.
+5. Explique em 2-3 frases quais alimentos foram alterados e por que.
+
+Retorne APENAS este JSON:
+{{
+  "total_kcal": ...,
+  "total_protein": ...,
+  "total_carbs": ...,
+  "total_fat": ...,
+  "explanation": "texto curto explicando as trocas",
+  "meals": [ ... refeições completas com id, name, time, foods (com id preservado) ... ]
+}}
+"""
+
+    chat = LlmChat(
+        api_key=EMERGENT_LLM_KEY,
+        session_id=f"rebalance_{user.user_id}_{uuid.uuid4().hex[:8]}",
+        system_message=system,
+    ).with_model("anthropic", "claude-sonnet-4-5-20250929")
+
+    try:
+        response = await chat.send_message(UserMessage(text=prompt))
+    except Exception as e:
+        logging.exception("LLM rebalance error")
+        raise HTTPException(status_code=500, detail=f"Falha ao rebalancear: {e}")
+
+    try:
+        parsed = _parse_json_from_llm(response)
+        new_meals = parsed["meals"]
+        explanation = parsed.get("explanation", "")
+        totals = {
+            "total_kcal": float(parsed["total_kcal"]),
+            "total_protein": float(parsed["total_protein"]),
+            "total_carbs": float(parsed["total_carbs"]),
+            "total_fat": float(parsed["total_fat"]),
+        }
+    except Exception as e:
+        logging.exception("Parse rebalance error: %s", response)
+        raise HTTPException(status_code=500, detail=f"Resposta da IA inválida: {e}")
+
+    updated = {**plan, **totals, "meals": new_meals}
+    updated.pop("_id", None)
+    await db.diet_plans.update_one({"id": plan["id"]}, {"$set": {**totals, "meals": new_meals}})
+    return {"plan": updated, "explanation": explanation}
 
 
 # ============ GOAL PROGRESS ============
@@ -535,7 +711,7 @@ async def goal_progress(authorization: Optional[str] = Header(None)):
     if start_weight == target:
         pct = 100.0
     else:
-        pct = ((start_weight - current) / (start_weight - target)) * 100 if start_weight != target else 0
+        pct = ((start_weight - current) / (start_weight - target)) * 100
         pct = max(0.0, min(100.0, pct))
     return {
         "has_goal": True,
@@ -549,7 +725,7 @@ async def goal_progress(authorization: Optional[str] = Header(None)):
     }
 
 
-# ============ EQUIPMENT LIST ============
+# ============ EQUIPMENT ============
 @api_router.get("/equipment/catalog")
 async def equipment_catalog():
     return [
@@ -576,13 +752,23 @@ async def equipment_catalog():
     ]
 
 
-# ============ ROOT ============
+@api_router.get("/muscle-groups")
+async def muscle_groups_catalog():
+    return [
+        {"id": "peito", "name": "Peito"},
+        {"id": "costas", "name": "Costas"},
+        {"id": "ombros", "name": "Ombros"},
+        {"id": "bracos", "name": "Braços"},
+        {"id": "pernas", "name": "Pernas"},
+        {"id": "abdomen", "name": "Abdômen"},
+    ]
+
+
 @api_router.get("/")
 async def root():
-    return {"message": "FitJourney API", "version": "1.0"}
+    return {"message": "FitJourney API", "version": "1.1"}
 
 
-# ============ Setup ============
 @app.on_event("startup")
 async def startup():
     await db.users.create_index("email", unique=True)

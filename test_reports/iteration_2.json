@@ -1,0 +1,36 @@
+{
+  "summary": "Iteration 2 (v1.1) — Backend: 15/15 pytest passed (root v1.1, equipment/muscle-groups catalog, auth me, workout single-group generate, workout custom generate w/ Push Day 6-9 exercises, /plans/group/peito, /plans/custom, /plans/id/{id}, PATCH rest valid + invalid 400, workout/logs/last with 3 sets sorted, diet generate w/ tmb/tdee/kcal_target_reason/4+ subs, diet/rebalance within 5% of original kcal). One transient 502 on diet/generate resolved on retry. Frontend: rebuilt after fixing SyntaxError in workout-detail.tsx (await inside non-async arrow). Tests passed: /treinos shows create-custom-btn + 6 muscle-* cards; /treino/create select peito+ombros -> IA gera plan, navega para /treino/plan/{id}, renderiza 8 exercícios ('Peito + Ombros'); /treino/peito expand ex-0, edit-rest-0 -> rest-modal, salvar 75 -> UI atualiza para 'Descanso 75s'. Nutrition why-btn + edit-food/rebalance UI NÃO pôde ser validada porque o EMERGENT_LLM_KEY excedeu o budget durante o teste ('Budget has been exceeded! Current cost: 0.413979, Max budget: 0.4'). O backend em si funciona — os endpoints /api/diet/generate e /api/diet/rebalance foram validados no pytest antes do budget acabar.",
+  "backend_issues": {"critical": [], "minor": [
+    {"endpoint": "/api/diet/generate", "issue": "Transient 502 (Cloudflare) observed once on first pytest run — passed on retry. Long Claude calls (~90s) may occasionally exceed proxy timeout."}
+  ]},
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [],
+    "react_native_issues": [
+      {"component": "workout-detail.tsx", "issue": "FIXED by testing agent: 'Unexpected reserved word await' — line 172 used `await r.json()` inside a non-async arrow function `setLastMap((m) => ({ ..., [name]: await r.json() }))`. Refactored to await outside the setter. Reference: /app/frontend/src/components/workout-detail.tsx:172"}
+    ]
+  },
+  "test_report_links": ["/app/backend/tests/backend_test.py", "/app/test_reports/pytest/pytest_results.xml"],
+  "action_items": [
+    "EMERGENT_LLM_KEY budget exhausted mid-test (0.413979 / 0.4). Renew/rotate key before further LLM-heavy testing. This blocks re-validation of the /nutricao why-btn modal and edit-food -> rebalance UI (backend endpoints already validated via pytest).",
+    "Consider small retry/backoff on /api/diet/generate to avoid transient Cloudflare 502 on long Claude runs.",
+    "server.py agora está em ~795 linhas — dividir em routers (auth, workout, diet, weight, goal) recomendado."
+  ],
+  "critical_code_review_comments": [
+    "workout-detail.tsx onLogSaved: `setLastMap((m) => ({ ..., [name]: await r.json() }))` era um bug de sintaxe crítico (await dentro de arrow não-async) — quebrou o bundle Metro. Corrigido pelo agente de teste extraindo `const data = await r.json()` antes de chamar o setter.",
+    "server.py get_group_plan (linha 416) usa filtro `{muscle_groups: [muscle_group], is_custom: False}` — funciona porque MongoDB compara arrays por igualdade. OK para grupamento único, mas se um dia um plano single-group vier salvo com is_custom True a query falha; ok considerando o fluxo atual.",
+    "diet/rebalance retorna `updated = {**plan, **totals, meals: new_meals}` incluindo `_id` do documento Mongo, então há `.pop('_id', None)`. Bom.",
+    "workout/logs/last agrupa por `date[:10]` (fatiar string ISO). Assume-se sempre formato ISO com data primeiro; ok para os inserts atuais.",
+    "server.py agora tem 795 linhas — acima do threshold de 700; dividir em routers."
+  ],
+  "updated_files": [
+    "/app/backend/tests/backend_test.py (rewritten for v1.1: custom workout, plans/custom, plans/id, rest PATCH, logs/last, diet tmb/tdee/kcal_target_reason, rebalance)",
+    "/app/frontend/src/components/workout-detail.tsx (bug fix: await inside non-async arrow)"
+  ],
+  "success_rate": {"backend": "100% (15/15 pytest, 1 flaky retry on diet/generate)", "frontend": "80% (5/6 UI flows validated: create-custom-btn+6 muscle cards, /treino/create->plan generation with 8 exercises, rest edit modal + 90s->75s update. Nutrition why-btn+rebalance blocked by LLM budget exhaustion, NOT a code bug)"},
+  "seed_data_creation": "Test user (user_id=test_user_1, email=test@example.com, all 8 equipment items) + session_token=fj-test-token seeded via pytest autouse fixture and re-seeded via /tmp/seed.py for frontend testing. Cleanup runs at end of pytest session.",
+  "retest_needed": false,
+  "should_main_agent_self_test": true,
+  "context_for_next_testing_agent": "Backend URL: https://body-transform-fit-2.preview.emergentagent.com. Frontend uses EXPO_PUBLIC_BACKEND_URL. Auth: inject localStorage 'fj_session_token' as RAW string 'fj-test-token' + seed users/user_sessions in test_database (see /tmp/seed.py in this env). All backend v1.1 tests are in /app/backend/tests/backend_test.py (pytest). LLM budget on EMERGENT_LLM_KEY was ~exhausted at end of iteration; renew before re-running LLM-heavy tests (workout/generate, diet/generate, diet/rebalance)."
+}
