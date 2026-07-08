@@ -58,7 +58,12 @@ const GROUP_LABEL: Record<string, string> = {
 function planTitle(plan: Plan | null): string {
   if (!plan) return "Treino";
   if (plan.name) return plan.name;
-  return plan.muscle_groups.map((g) => GROUP_LABEL[g] ?? g).join(" + ");
+
+  const groups = Array.isArray(plan.muscle_groups) ? plan.muscle_groups : [];
+
+  if (groups.length === 0) return "Treino";
+
+  return groups.map((g) => GROUP_LABEL[g] ?? g).join(" + ");
 }
 
 export function WorkoutDetail({
