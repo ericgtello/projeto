@@ -232,9 +232,16 @@ export function WorkoutDetail({
         </View>
       ) : (
         <ScrollView contentContainerStyle={styles.scroll}>
-          {plan.is_custom && plan.muscle_groups.length > 0 ? (
-            <View style={styles.groupPills}>
-              {plan.muscle_groups.map((g) => (
+             {plan.is_custom && Array.isArray(plan.muscle_groups) && plan.muscle_groups.length > 0 ? (
+  <View style={styles.groupPills}>
+    {plan.muscle_groups.map((g) => (
+      <View key={g} style={styles.groupPill}>
+        <Text style={styles.groupPillText}>{GROUP_LABEL[g] ?? g}</Text>
+      </View>
+    ))}
+  </View>
+) : null}
+        
                 <View key={g} style={styles.groupPill}>
                   <Text style={styles.groupPillText}>{GROUP_LABEL[g] ?? g}</Text>
                 </View>
@@ -349,7 +356,7 @@ export function WorkoutDetail({
       <LogSetModal
         visible={!!logModal}
         exercise={logModal?.exercise ?? null}
-        muscleGroup={plan?.muscle_groups?.[0] ?? "custom"}
+        muscleGroup={Array.isArray(plan?.muscle_groups) ? plan!.muscle_groups[0] ?? "custom" : "custom"}
         onClose={() => setLogModal(null)}
         onSaved={onLogSaved}
         token={token}
