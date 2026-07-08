@@ -225,7 +225,7 @@ export function WorkoutDetail({
         </View>
       ) : (
         <ScrollView contentContainerStyle={styles.scroll}>
-             {plan.is_custom && Array.isArray(plan.muscle_groups) && plan.muscle_groups.length > 0 ? (
+            {plan.is_custom && Array.isArray(plan.muscle_groups) && plan.muscle_groups.length > 0 ? (
   <View style={styles.groupPills}>
     {plan.muscle_groups.map((g) => (
       <View key={g} style={styles.groupPill}>
@@ -233,14 +233,8 @@ export function WorkoutDetail({
       </View>
     ))}
   </View>
-) : null}
-        
-                <View key={g} style={styles.groupPill}>
-                  <Text style={styles.groupPillText}>{GROUP_LABEL[g] ?? g}</Text>
-                </View>
-              ))}
-            </View>
-          ) : null}
+) : null} 
+
           {plan.exercises.map((ex, idx) => {
             const key = `${idx}-${ex.name}`;
             const isOpen = expanded[key];
@@ -614,7 +608,7 @@ const styles = StyleSheet.create({
     borderColor: theme.color.brand,
   },
   logBtnText: { color: theme.color.brand, fontWeight: "700", letterSpacing: 0.5 },
-  ,
+  
 
   badgeRow: {
     flexDirection: "row",
