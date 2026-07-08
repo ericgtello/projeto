@@ -332,17 +332,19 @@ async def generate_workout(payload: WorkoutGenRequest, authorization: Optional[s
     is_custom = len(payload.muscle_groups) > 1 or bool(payload.name)
 
     system = (
-        "Você é um personal trainer experiente. Gere treinos personalizados em português (pt-BR). "
-        "Responda SEMPRE apenas com JSON válido, sem markdown."
-    )
-    if is_custom:
-        target = f"combinação de grupamentos musculares: {', '.join(groups_pt)}"
-        count = "entre 6 e 9 exercícios (distribuindo bem entre os grupamentos escolhidos)"
-    else:
-        target = f"grupamento muscular: {groups_pt[0]}"
-        count = "entre 5 e 7 exercícios"
+    "Você é um personal trainer experiente, baseado em ciência do treinamento. "
+    "Gere treinos personalizados em português (pt-BR). "
+    "Responda SEMPRE apenas com JSON válido, sem markdown."
+)
 
-    prompt = f"""Gere um treino para {target}.
+if is_custom:
+    target = f"combinação de grupamentos musculares: {', '.join(groups_pt)}"
+    count = "entre 6 e 9 exercícios, distribuindo bem entre os grupamentos escolhidos"
+else:
+    target = f"grupamento muscular: {groups_pt[0]}"
+    count = "entre 5 e 7 exercícios"
+
+prompt = f"""Gere um treino para {target}.
 
 Perfil do aluno:
 - Objetivo: {user.goal or 'não informado'}
@@ -354,10 +356,14 @@ Perfil do aluno:
 
 Regras:
 - Selecione {count} adequados aos equipamentos disponíveis.
-- Se o objetivo for hipertrofia: 3-4 séries de 8-12 repetições, descanso 60-90s.
-- Se for emagrecimento: 3-4 séries de 12-15 repetições, descanso 30-45s.
-- Para cada exercício, escreva 2-3 frases claras com dicas de execução (postura, respiração, erros comuns).
-- Ordene os exercícios de forma inteligente (compostos primeiro).
+- Quando houver múltiplos grupamentos, distribua os exercícios entre todos eles.
+- Ordene os exercícios de forma inteligente: compostos/multiarticulares primeiro, isolados/monoarticulares depois.
+- Para exercícios compostos ou multiarticulares, use 3-4 séries, faixa de 5-9 repetições e descanso de 120 segundos.
+- Para exercícios isolados ou monoarticulares, use 3-4 séries, faixa de 8-12 repetições e descanso mínimo de 90 segundos.
+- Para exercícios unilaterais, use a faixa de 8-12 repetições, descanso de 60-90 segundos entre séries e informe nas dicas que o usuário pode descansar 30 segundos entre os lados.
+- Não use a divisão "hipertrofia 8-12" e "emagrecimento 12-15". A prescrição deve ser baseada no tipo do exercício, não no objetivo.
+- Para cada exercício, escreva 2-3 frases claras com dicas de execução.
+- Em todos os exercícios, inclua ao final das dicas: "Quando atingir o limite superior da faixa de repetições com boa execução em todas as séries, considere aumentar a carga em até 5% na próxima sessão."
 
 Retorne APENAS este JSON:
 {{
@@ -365,9 +371,9 @@ Retorne APENAS este JSON:
     {{
       "name": "Nome do exercício",
       "sets": 4,
-      "reps": "10-12",
-      "rest_seconds": 60,
-      "tips": "Dicas de execução em 2-3 frases.",
+      "reps": "5-9 ou 8-12",
+      "rest_seconds": 120,
+      "tips": "Dicas de execução em 2-3 frases. Inclua a orientação de progressão.",
       "equipment": "Nome do equipamento usado"
     }}
   ]

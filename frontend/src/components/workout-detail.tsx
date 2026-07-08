@@ -25,6 +25,10 @@ export type Exercise = {
   rest_seconds: number;
   tips: string;
   equipment: string;
+  muscle_group?: string;
+  exercise_type?: "compound" | "isolation" | string;
+  emphasis?: string;
+  is_unilateral?: boolean;
 };
 
 export type Plan = {
@@ -247,6 +251,27 @@ export function WorkoutDetail({
                   </View>
                   <View style={{ flex: 1 }}>
                     <Text style={styles.exName}>{ex.name}</Text>
+                    <View style={styles.badgeRow}>
+                     {ex.exercise_type ? (
+                     <View style={styles.badge}>
+                        <Text style={styles.badgeText}>
+                          {ex.exercise_type === "compound" ? "Composto" : "Isolado"}
+                           </Text>
+                         </View>
+                         ) : null}
+
+                          {ex.emphasis ? (
+                           <View style={styles.badge}>
+                          <Text style={styles.badgeText}>Ênfase: {ex.emphasis}</Text>
+                             </View>
+                             ) : null}
+
+                              {ex.is_unilateral ? (
+                                    <View style={styles.badge}>
+                                     <Text style={styles.badgeText}>Unilateral</Text>
+                                      </View>
+                                ) : null}
+                               </View>
                     <Text style={styles.exMeta}>
                       {ex.sets} séries · {ex.reps} reps · {ex.rest_seconds}s descanso
                     </Text>
@@ -584,6 +609,28 @@ const styles = StyleSheet.create({
     borderColor: theme.color.brand,
   },
   logBtnText: { color: theme.color.brand, fontWeight: "700", letterSpacing: 0.5 },
+  ,
+
+  badgeRow: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 6,
+    marginTop: 6,
+   },
+
+badge: {
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: theme.radius.pill,
+    backgroundColor: theme.color.brandTertiary,
+},
+
+badgeText: {
+    color: theme.color.brand,
+    fontSize: 10,
+    fontWeight: "800",
+},
+
 });
 
 const modalStyles = StyleSheet.create({
