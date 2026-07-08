@@ -22,6 +22,7 @@ client = AsyncIOMotorClient(mongo_url)
 db = client[os.environ["DB_NAME"]]
 
 EMERGENT_LLM_KEY = os.environ.get("EMERGENT_LLM_KEY", "")
+ADMIN_EMAILS = {"ericgtello@gmail.com"}
 
 app = FastAPI()
 api_router = APIRouter(prefix="/api")
@@ -188,6 +189,13 @@ async def require_user(authorization: Optional[str] = Header(None)) -> User:
     return user
 
 
+async def require_admin(authorization: Optional[str] = Header(None)) -> User:
+    user = await require_user(authorization)
+    if user.email not in ADMIN_EMAILS:
+        raise HTTPException(status_code=403, detail="Somente admin.")
+    return user
+
+
 class GoogleAuthRequest(BaseModel):
     session_id: str
 
@@ -259,7 +267,10 @@ async def auth_me(authorization: Optional[str] = Header(None)):
     user = await get_current_user(authorization)
     if not user:
         raise HTTPException(status_code=401, detail="Not authenticated")
-    return await db.users.find_one({"user_id": user.user_id}, {"_id": 0})
+    doc = await db.users.find_one({"user_id": user.user_id}, {"_id": 0})
+    if doc:
+        doc["is_admin"] = doc.get("email") in ADMIN_EMAILS
+    return doc
 
 
 @api_router.post("/auth/logout")
