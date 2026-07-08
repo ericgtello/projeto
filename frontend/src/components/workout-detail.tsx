@@ -59,7 +59,10 @@ function planTitle(plan: Plan | null): string {
   if (!plan) return "Treino";
   if (plan.name) return plan.name;
 
-  const groups = Array.isArray(plan.muscle_groups) ? plan.muscle_groups : [];
+  const groups =
+    Array.isArray(plan.muscle_groups)
+      ? plan.muscle_groups
+      : [];
 
   if (groups.length === 0) return "Treino";
 
