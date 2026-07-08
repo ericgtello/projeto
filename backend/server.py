@@ -72,7 +72,10 @@ class Exercise(BaseModel):
     rest_seconds: int
     tips: str
     equipment: str
-
+    muscle_group: Optional[str] = None
+    exercise_type: Optional[str] = None
+    emphasis: Optional[str] = None
+    is_unilateral: bool = False
 
 class WorkoutPlan(BaseModel):
     id: str = Field(default_factory=lambda: str(uuid.uuid4()))
@@ -364,12 +367,19 @@ Regras:
 - Não use a divisão "hipertrofia 8-12" e "emagrecimento 12-15". A prescrição deve ser baseada no tipo do exercício, não no objetivo.
 - Para cada exercício, escreva 2-3 frases claras com dicas de execução.
 - Em todos os exercícios, inclua ao final das dicas: "Quando atingir o limite superior da faixa de repetições com boa execução em todas as séries, considere aumentar a carga em até 5% na próxima sessão."
+- Não ultrapasse 10 séries diretas para o mesmo grupamento em uma única sessão.
+- Inclua exercise_type como "compound" ou "isolation".
+- Inclua emphasis com a região de maior ênfase do exercício.
 
 Retorne APENAS este JSON:
 {{
   "exercises": [
     {{
       "name": "Nome do exercício",
+      "muscle_group": "peito",
+      "exercise_type": "compound",
+      "emphasis": "Peitoral superior",
+      "is_unilateral": false,
       "sets": 4,
       "reps": "5-9 ou 8-12",
       "rest_seconds": 120,
